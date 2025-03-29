@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Dinosaur from './Dinosaur';
 import Obstacle from './Obstacle';
 import { useToast } from '../components/ui/use-toast';
@@ -31,8 +30,8 @@ const Game = () => {
   const scoreIntervalRef = useRef<NodeJS.Timeout>();
   const lastTimestampRef = useRef<number>(0);
   const { toast } = useToast();
+  const gameContainerRef = useRef<HTMLDivElement>(null);
 
-  // Khởi tạo trò chơi
   const startGame = () => {
     setGameState({
       isPlaying: true,
@@ -47,14 +46,12 @@ const Game = () => {
     lastTimestampRef.current = 0;
     requestRef.current = requestAnimationFrame(updateGameArea);
     
-    // Tạo vật cản theo chu kỳ
     obstacleIntervalRef.current = setInterval(() => {
       if (gameState.isPlaying && !gameState.gameOver) {
         setObstacles(prev => [...prev, { id: Date.now(), position: 100 }]);
       }
     }, 2000);
     
-    // Tăng điểm theo thời gian
     scoreIntervalRef.current = setInterval(() => {
       if (gameState.isPlaying && !gameState.gameOver) {
         setGameState(prev => ({ ...prev, score: prev.score + 1 }));
@@ -62,7 +59,6 @@ const Game = () => {
     }, 100);
   };
 
-  // Xử lý kết thúc trò chơi
   const endGame = () => {
     setGameState(prev => {
       const newHighScore = Math.max(prev.score, prev.highScore);
@@ -85,7 +81,6 @@ const Game = () => {
     });
   };
 
-  // Cập nhật trạng thái trò chơi
   const updateGameArea = (timestamp: number) => {
     if (!lastTimestampRef.current) {
       lastTimestampRef.current = timestamp;
@@ -94,35 +89,29 @@ const Game = () => {
     const deltaTime = timestamp - lastTimestampRef.current;
     lastTimestampRef.current = timestamp;
     
-    // Cập nhật vị trí khủng long
     setDinosaurPosition(prev => {
-      // Áp dụng trọng lực
       let newPosition = prev + velocity * (deltaTime / 16);
       
-      // Giới hạn vị trí trong khung trò chơi
       if (newPosition < 0) newPosition = 0;
       if (newPosition > 80) newPosition = 80;
       
       return newPosition;
     });
     
-    // Cập nhật vận tốc
     setVelocity(prev => {
       let newVelocity = prev + gravity * (deltaTime / 16) * 0.1;
       return newVelocity;
     });
     
-    // Di chuyển vật cản
     setObstacles(prev => {
       return prev
         .map(obstacle => ({
           ...obstacle,
           position: obstacle.position - obstacleSpeed * (deltaTime / 16)
         }))
-        .filter(obstacle => obstacle.position > -10); // Loại bỏ các vật cản đã đi qua màn hình
+        .filter(obstacle => obstacle.position > -10);
     });
     
-    // Kiểm tra va chạm
     const dinosaurElement = document.getElementById('dinosaur');
     const dinosaurRect = dinosaurElement?.getBoundingClientRect();
     
@@ -148,31 +137,35 @@ const Game = () => {
     }
   };
 
-  // Xử lý sự kiện nhảy
-  const jump = () => {
+  const jump = useCallback(() => {
     if (gameState.isPlaying && !gameState.gameOver) {
-      setVelocity(-5); // Đặt vận tốc âm để nhảy lên
+      setVelocity(-5);
     } else if (!gameState.isPlaying) {
       startGame();
     } else if (gameState.gameOver) {
       startGame();
     }
-  };
-
-  // Xử lý sự kiện nhấn phím
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        e.preventDefault();
-        jump();
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [gameState.isPlaying, gameState.gameOver]);
 
-  // Dọn dẹp khi component bị hủy
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      jump();
+    }
+  }, [jump]);
+
+  useEffect(() => {
+    const gameContainer = gameContainerRef.current;
+    if (gameContainer) {
+      gameContainer.focus();
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleKeyDown]);
+
   useEffect(() => {
     return () => {
       cancelAnimationFrame(requestRef.current!);
@@ -181,7 +174,6 @@ const Game = () => {
     };
   }, []);
 
-  // Tính toán độ khó tăng dần
   useEffect(() => {
     if (gameState.score > 0 && gameState.score % 50 === 0) {
       setObstacleSpeed(prev => Math.min(prev + 0.5, 12));
@@ -189,7 +181,11 @@ const Game = () => {
   }, [gameState.score]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-blue-50">
+    <div 
+      ref={gameContainerRef}
+      tabIndex={0}
+      className="flex flex-col items-center justify-center min-h-screen bg-blue-50 outline-none"
+    >
       <div className="mb-4 text-center">
         <h1 className="text-3xl font-bold text-primary mb-2">Dino Space Jump</h1>
         <div className="flex gap-4 justify-center">

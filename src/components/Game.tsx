@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Dinosaur from './Dinosaur';
 import Obstacle from './Obstacle';
-import { useToast } from '../components/ui/use-toast';
+import { useToast } from '../hooks/use-toast';
 import { Button } from '../components/ui/button';
 import { Space } from 'lucide-react';
 
@@ -33,6 +34,7 @@ const Game = () => {
   const gameContainerRef = useRef<HTMLDivElement>(null);
 
   const startGame = () => {
+    console.log("Bắt đầu trò chơi");
     setGameState({
       isPlaying: true,
       gameOver: false,
@@ -44,14 +46,18 @@ const Game = () => {
     setObstacles([]);
     setObstacleSpeed(4);
     lastTimestampRef.current = 0;
+    
+    // Bắt đầu animation frame
     requestRef.current = requestAnimationFrame(updateGameArea);
     
+    // Tạo vật cản mới
     obstacleIntervalRef.current = setInterval(() => {
       if (gameState.isPlaying && !gameState.gameOver) {
         setObstacles(prev => [...prev, { id: Date.now(), position: 100 }]);
       }
     }, 2000);
     
+    // Tăng điểm
     scoreIntervalRef.current = setInterval(() => {
       if (gameState.isPlaying && !gameState.gameOver) {
         setGameState(prev => ({ ...prev, score: prev.score + 1 }));
@@ -60,6 +66,7 @@ const Game = () => {
   };
 
   const endGame = () => {
+    console.log("Kết thúc trò chơi");
     setGameState(prev => {
       const newHighScore = Math.max(prev.score, prev.highScore);
       return {
@@ -70,9 +77,17 @@ const Game = () => {
       };
     });
     
-    cancelAnimationFrame(requestRef.current!);
-    clearInterval(obstacleIntervalRef.current!);
-    clearInterval(scoreIntervalRef.current!);
+    if (requestRef.current) {
+      cancelAnimationFrame(requestRef.current);
+    }
+    
+    if (obstacleIntervalRef.current) {
+      clearInterval(obstacleIntervalRef.current);
+    }
+    
+    if (scoreIntervalRef.current) {
+      clearInterval(scoreIntervalRef.current);
+    }
     
     toast({
       title: "Game Over!",
@@ -89,6 +104,7 @@ const Game = () => {
     const deltaTime = timestamp - lastTimestampRef.current;
     lastTimestampRef.current = timestamp;
     
+    // Cập nhật vị trí khủng long
     setDinosaurPosition(prev => {
       let newPosition = prev + velocity * (deltaTime / 16);
       
@@ -98,11 +114,13 @@ const Game = () => {
       return newPosition;
     });
     
+    // Cập nhật vận tốc (trọng lực)
     setVelocity(prev => {
       let newVelocity = prev + gravity * (deltaTime / 16) * 0.1;
       return newVelocity;
     });
     
+    // Di chuyển vật cản
     setObstacles(prev => {
       return prev
         .map(obstacle => ({
@@ -112,6 +130,7 @@ const Game = () => {
         .filter(obstacle => obstacle.position > -10);
     });
     
+    // Kiểm tra va chạm
     const dinosaurElement = document.getElementById('dinosaur');
     const dinosaurRect = dinosaurElement?.getBoundingClientRect();
     
@@ -132,12 +151,14 @@ const Game = () => {
       });
     }
     
+    // Tiếp tục vòng lặp game
     if (gameState.isPlaying && !gameState.gameOver) {
       requestRef.current = requestAnimationFrame(updateGameArea);
     }
   };
 
   const jump = useCallback(() => {
+    console.log("Nhảy! Trạng thái game:", gameState.isPlaying, gameState.gameOver);
     if (gameState.isPlaying && !gameState.gameOver) {
       setVelocity(-5);
     } else if (!gameState.isPlaying) {
@@ -148,32 +169,47 @@ const Game = () => {
   }, [gameState.isPlaying, gameState.gameOver]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    console.log("Phím được nhấn:", e.code);
     if (e.code === 'Space') {
       e.preventDefault();
       jump();
     }
   }, [jump]);
 
+  // Gắn sự kiện bàn phím khi component được tạo
   useEffect(() => {
-    const gameContainer = gameContainerRef.current;
-    if (gameContainer) {
-      gameContainer.focus();
-    }
-
+    console.log("Thêm sự kiện bàn phím");
     window.addEventListener('keydown', handleKeyDown);
+    
+    // Focus vào game container ngay khi component được tạo
+    if (gameContainerRef.current) {
+      gameContainerRef.current.focus();
+    }
+    
     return () => {
+      console.log("Gỡ bỏ sự kiện bàn phím");
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [handleKeyDown]);
 
+  // Dọn dẹp khi component bị hủy
   useEffect(() => {
     return () => {
-      cancelAnimationFrame(requestRef.current!);
-      clearInterval(obstacleIntervalRef.current!);
-      clearInterval(scoreIntervalRef.current!);
+      if (requestRef.current) {
+        cancelAnimationFrame(requestRef.current);
+      }
+      
+      if (obstacleIntervalRef.current) {
+        clearInterval(obstacleIntervalRef.current);
+      }
+      
+      if (scoreIntervalRef.current) {
+        clearInterval(scoreIntervalRef.current);
+      }
     };
   }, []);
 
+  // Tăng tốc độ game theo điểm số
   useEffect(() => {
     if (gameState.score > 0 && gameState.score % 50 === 0) {
       setObstacleSpeed(prev => Math.min(prev + 0.5, 12));
@@ -185,6 +221,13 @@ const Game = () => {
       ref={gameContainerRef}
       tabIndex={0}
       className="flex flex-col items-center justify-center min-h-screen bg-blue-50 outline-none"
+      onKeyDown={(e) => {
+        console.log("Sự kiện onKeyDown trên container:", e.code);
+        if (e.code === 'Space') {
+          e.preventDefault();
+          jump();
+        }
+      }}
     >
       <div className="mb-4 text-center">
         <h1 className="text-3xl font-bold text-primary mb-2">Dino Space Jump</h1>
@@ -200,7 +243,14 @@ const Game = () => {
       
       <div 
         ref={gameAreaRef}
-        className="game-area w-[800px] h-[400px] border-4 border-primary rounded-lg relative"
+        className="game-area w-[800px] h-[400px] border-4 border-primary rounded-lg relative bg-sky-200"
+        onClick={() => {
+          // Focus vào container và khởi động game khi click vào game area
+          gameContainerRef.current?.focus();
+          if (!gameState.isPlaying || gameState.gameOver) {
+            startGame();
+          }
+        }}
       >
         {!gameState.isPlaying && !gameState.gameOver && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-50 text-white z-10">
@@ -233,7 +283,7 @@ const Game = () => {
           <Obstacle key={obstacle.id} position={obstacle.position} />
         ))}
         
-        <div className="ground h-16"></div>
+        <div className="absolute bottom-0 w-full h-16 bg-amber-800"></div>
         
         <button 
           onClick={jump}
